@@ -773,8 +773,8 @@ export function createBackCover(book: Book) {
 }
 
 /**
- * A plain brass plaque: a flat plate with the shelf's label in clear, dark
- * type, drawn into one row of the label atlas.
+ * The shelf's label as bare lettering on the wood: soft white type with a
+ * faint shadow, drawn into one row of the label atlas (transparent elsewhere).
  */
 export function drawShelfLabel(
   ctx: CanvasRenderingContext2D,
@@ -785,26 +785,15 @@ export function drawShelfLabel(
   _number: string,
   text: string,
 ) {
-  const pad = height * 0.08;
-  const plateX = x + pad;
-  const plateY = y + pad;
-  const plateW = width - pad * 2;
-  const plateH = height - pad * 2;
   ctx.save();
   ctx.clearRect(x, y, width, height);
-
-  const brass = ctx.createLinearGradient(0, plateY, 0, plateY + plateH);
-  brass.addColorStop(0, "#dcbd79");
-  brass.addColorStop(1, "#c29c56");
-  ctx.fillStyle = brass;
-  ctx.beginPath();
-  ctx.roundRect(plateX, plateY, plateW, plateH, plateH * 0.12);
-  ctx.fill();
-
-  ctx.fillStyle = "#2f220e";
-  ctx.textAlign = "center";
+  ctx.textAlign = "left";
   ctx.textBaseline = "middle";
-  ctx.font = `560 ${Math.round(plateH * 0.52)}px ${serif}`;
-  ctx.fillText(text, plateX + plateW / 2, plateY + plateH / 2 + 2, plateW - plateH * 0.6);
+  ctx.font = `560 ${Math.round(height * 0.5)}px ${serif}`;
+  ctx.shadowColor = "rgba(20, 10, 4, 0.55)";
+  ctx.shadowOffsetY = 2;
+  ctx.shadowBlur = 2;
+  ctx.fillStyle = "#f7f2e8";
+  ctx.fillText(text, x + height * 0.1, y + height / 2 + 2, width - height * 0.2);
   ctx.restore();
 }
