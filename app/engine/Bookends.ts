@@ -218,6 +218,111 @@ export class SurfboardBookend extends Bookend {
   }
 }
 
+function haloTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = 128;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gradient.addColorStop(0, "rgba(255, 248, 232, 1)");
+    gradient.addColorStop(0.35, "rgba(255, 240, 214, 0.45)");
+    gradient.addColorStop(1, "rgba(255, 236, 205, 0)");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 128, 128);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+/** Glow colors the orb steps through, one per click (warm white first). */
+const glowColors = ["#fff4e2", "#ff7fa8", "#9d7bff", "#5fe0a0", "#62b4ff", "#ffa640"];
+
+/**
+ * A glowing white orb lamp on a low-poly walnut and brass base. It lights
+ * the books around it; each click fades it to the next glow color.
+ */
+export class LampBookend extends Bookend {
+  private orbMaterial = new THREE.MeshStandardMaterial({
+    color: "#ffffff",
+    emissive: glowColors[0],
+    emissiveIntensity: 1.7,
+    roughness: 0.35,
+  });
+  private orb: THREE.Mesh;
+  private halo: THREE.Sprite;
+  private light = new THREE.PointLight(glowColors[0], 3.2, 4.2, 1.6);
+  private colorIndex = 0;
+  private glowColor = new THREE.Color(glowColors[0]);
+  private targetColor = new THREE.Color(glowColors[0]);
+  private lastElapsed = 0;
+
+  constructor() {
+    const walnut = "#4b3429";
+    const brass = "#c9a15a";
+    super(
+      [
+        part(new THREE.CylinderGeometry(0.2, 0.25, 0.12, 8), walnut, [0, 0.06, 0]),
+        part(new THREE.CylinderGeometry(0.11, 0.15, 0.07, 8), brass, [0, 0.155, 0]),
+      ],
+      "orbLampBookend",
+    );
+    const orbY = 0.19 + 0.3;
+    this.orb = new THREE.Mesh(new THREE.SphereGeometry(0.3, 40, 28), this.orbMaterial);
+    this.orb.position.y = orbY;
+    this.halo = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: haloTexture(),
+        color: glowColors[0],
+        transparent: true,
+        opacity: 0.6,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+    );
+    this.halo.scale.setScalar(1.7);
+    this.halo.position.set(0, orbY, 0.05);
+    this.light.position.set(0, orbY, 0.25);
+    this.body.add(this.orb, this.halo, this.light);
+  }
+
+  poke() {
+    this.colorIndex = (this.colorIndex + 1) % glowColors.length;
+    this.targetColor.set(glowColors[this.colorIndex]);
+  }
+
+  update(elapsed: number, _delta: number, reducedMotion: boolean) {
+    const delta = Math.min(0.05, Math.max(0, elapsed - this.lastElapsed));
+    this.lastElapsed = elapsed;
+    if (reducedMotion) this.glowColor.copy(this.targetColor);
+    else this.glowColor.lerp(this.targetColor, 1 - Math.exp(-5 * delta));
+    this.animate(elapsed);
+  }
+
+  protected animate(elapsed: number) {
+    // A slow, barely-there breathing so the glow feels alive.
+    const breathe = 1 + Math.sin(elapsed * 1.1) * 0.04;
+    // Tint the glass as well as the glow so the hue survives tone mapping.
+    this.orbMaterial.color.copy(this.glowColor);
+    this.orbMaterial.emissive.copy(this.glowColor);
+    this.orbMaterial.emissiveIntensity = 1.35 * breathe;
+    this.light.color.copy(this.glowColor);
+    this.light.intensity = 3.2 * breathe;
+    (this.halo.material as THREE.SpriteMaterial).color.copy(this.glowColor);
+  }
+
+  dispose() {
+    this.orb.geometry.dispose();
+    this.orbMaterial.dispose();
+    const haloMaterial = this.halo.material as THREE.SpriteMaterial;
+    haloMaterial.map?.dispose();
+    haloMaterial.dispose();
+    super.dispose();
+  }
+}
+
 export function createBookend(kind: BookendKind): Bookend {
-  return kind === "penguin" ? new PenguinBookend() : new SurfboardBookend();
+  if (kind === "penguin") return new PenguinBookend();
+  if (kind === "surfboard") return new SurfboardBookend();
+  return new LampBookend();
 }

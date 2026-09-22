@@ -8,7 +8,6 @@ export const siteConfig = {
   editionEyebrow: "FROM THE SHELF",
   coverImprint: "CLAIRE’S BOOKSHELF",
   coverTagline: "A READING LIFE",
-  spineMark: "CB",
   bookLinkLabel: "View on Goodreads",
   // Set to false to use only procedural covers (e.g. for a public deployment
   // where you don't want to redistribute publisher cover art).

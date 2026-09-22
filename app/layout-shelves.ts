@@ -11,10 +11,11 @@ export type ShelfLayoutOptions = {
   bookends?: BookendSpec[];
 };
 
-export type BookendKind = "penguin" | "surfboard";
+export type BookendKind = "penguin" | "surfboard" | "lamp";
 
 export type BookendSpec = {
   kind: BookendKind;
+  /** Shelf index; negative counts from the bottom (−1 is the last shelf). */
   row: number;
   /** How far along the shelf it stands, 0–1. */
   fraction: number;
@@ -44,14 +45,37 @@ export const defaultShelfOptions: ShelfLayoutOptions = {
   inset: 0.18,
   bookends: [
     { kind: "penguin", row: 2, fraction: 0.75, width: 1.15 },
-    { kind: "surfboard", row: 4, fraction: 0.25, width: 1.0 },
+    { kind: "surfboard", row: 6, fraction: 0.25, width: 1.0 },
+    { kind: "lamp", row: -2, fraction: 0.6, width: 0.95 },
   ],
 };
 
+/**
+ * Resolves bookends given relative to the bottom shelf. The shelf count
+ * depends on where bookends go, so repack until it settles (1–2 passes).
+ */
 export function layoutShelves(
   thicknesses: number[],
   options: ShelfLayoutOptions = defaultShelfOptions,
 ): ShelfLayout {
+  const specs = options.bookends ?? [];
+  let layout = packShelves(thicknesses, {
+    ...options,
+    bookends: specs.filter((spec) => spec.row >= 0),
+  });
+  if (!specs.some((spec) => spec.row < 0)) return layout;
+  for (let pass = 0; pass < 3; pass += 1) {
+    const rows = layout.rows.length;
+    const resolved = specs
+      .map((spec) => (spec.row < 0 ? { ...spec, row: rows + spec.row } : spec))
+      .filter((spec) => spec.row >= 0);
+    layout = packShelves(thicknesses, { ...options, bookends: resolved });
+    if (layout.rows.length === rows) break;
+  }
+  return layout;
+}
+
+function packShelves(thicknesses: number[], options: ShelfLayoutOptions): ShelfLayout {
   const slots: ShelfLayout["slots"] = [];
   const rows: ShelfRow[] = [];
   let shelf = 0;

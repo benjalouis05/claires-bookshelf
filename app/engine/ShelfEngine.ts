@@ -250,6 +250,7 @@ export class ShelfEngine {
       bookcase: () => this.exitToBookcase(),
       returnToShelf: () => this.returnToShelf(),
       tick: (frames: number) => this.tick(frames),
+      poke: (kind: "penguin" | "surfboard" | "lamp") => this.bookcase.bookends.get(kind)?.poke(),
     };
   }
 

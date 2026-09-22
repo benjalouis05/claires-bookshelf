@@ -104,13 +104,19 @@ test("bookends stand where planned, with clear space beside the books", () => {
     const { shelfWidth, bookends } = defaultShelfOptions;
     for (const spec of bookends) {
       const placed = layout.bookends.find((end) => end.kind === spec.kind);
+      if (spec.row >= layout.rows.length) {
+        // A short bookcase (e.g. only rated books) may not reach this shelf.
+        assert.equal(placed, undefined, `${key} ${spec.kind}`);
+        continue;
+      }
       assert.ok(placed, `${key} ${spec.kind}`);
-      assert.equal(placed.shelf, spec.row);
+      const expectedRow = spec.row < 0 ? layout.rows.length + spec.row : spec.row;
+      assert.equal(placed.shelf, expectedRow, `${key} ${spec.kind} shelf`);
       assert.ok(
         Math.abs(placed.x - shelfWidth * spec.fraction) < 0.35,
         `${key} ${spec.kind} x=${placed.x}`,
       );
-      const row = layout.rows[spec.row];
+      const row = layout.rows[expectedRow];
       for (let position = row.start; position < row.end; position += 1) {
         const distance = Math.abs(layout.slots[position].x - placed.x);
         assert.ok(

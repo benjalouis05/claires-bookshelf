@@ -679,14 +679,6 @@ export function drawSpine(
     ctx.fillText(authorLine(book), 0, titleSize * 0.52 + authorSize * 0.72, titleRoom * 0.8);
   }
   ctx.restore();
-
-  ctx.fillStyle = book.ink;
-  ctx.globalAlpha = 0.8;
-  ctx.letterSpacing = "0px";
-  ctx.font = `700 ${Math.min(44, logicalWidth * 0.3)}px ${sans}`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(siteConfig.spineMark, logicalWidth / 2, logicalHeight - 110);
   ctx.restore();
 }
 

@@ -189,7 +189,7 @@ export class Bookcase {
   pickBookend(raycaster: THREE.Raycaster) {
     for (const bookend of this.bookends.values()) {
       if (!bookend.group.visible) continue;
-      if (raycaster.intersectObject(bookend.mesh, false).length) return bookend;
+      if (raycaster.intersectObject(bookend.group, true).length) return bookend;
     }
     return null;
   }
