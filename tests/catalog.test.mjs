@@ -67,7 +67,8 @@ test("generated catalog matches the CSV and has a palette for every book", () =>
   for (const book of books) {
     assert.match(book.cover, /^#[0-9a-f]{6}$/);
     assert.match(book.accent, /^#[0-9a-f]{6}$/);
-    assert.ok(book.height > 1.6 && book.height < 2.3);
+    assert.ok(book.height >= 1.56 && book.height <= 2.32);
+    assert.ok(book.cornerRadius >= 0.01 && book.cornerRadius <= 0.1);
     assert.ok(!("sourceCover" in book));
   }
 });

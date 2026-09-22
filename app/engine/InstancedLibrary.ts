@@ -4,8 +4,6 @@ import type { Book } from "../catalog";
 import type { AtlasRect, SpineAtlas } from "./SpineAtlas";
 
 const pageColor = new THREE.Color("#d9ccb1");
-/** Corner radius in scene units, the same for every book whatever its size. */
-const cornerRadius = 0.03;
 
 /**
  * A unit rounded box. Every vertex is an inner corner (`aCorner`, ±0.5 per
@@ -34,7 +32,8 @@ function createBookGeometry() {
 }
 
 /**
- * GLSL that rounds a unit box scaled by instanceMatrix with a fixed radius:
+ * GLSL that rounds a unit box scaled by instanceMatrix with a per-book radius
+ * (in scene units, so it looks the same on thin and thick books):
  * the inner corner sits at (size/2 − r) and the surface lies r along the
  * normal, expressed in pre-scale units.
  */
@@ -44,17 +43,16 @@ const roundedVertex = `
     length(instanceMatrix[1].xyz),
     length(instanceMatrix[2].xyz)
   ), vec3(1e-4));
-  vec3 roundRadius = min(vec3(uCornerRadius), 0.45 * roundScale) / roundScale;
+  vec3 roundRadius = min(vec3(aRadius), 0.45 * roundScale) / roundScale;
   vec3 transformed = aCorner + (normal - sign(aCorner)) * roundRadius;`;
 
 function injectRounding(shader: THREE.WebGLProgramParametersWithUniforms) {
-  shader.uniforms.uCornerRadius = { value: cornerRadius };
   shader.vertexShader = shader.vertexShader
     .replace(
       "#include <common>",
       `#include <common>
       attribute vec3 aCorner;
-      uniform float uCornerRadius;`,
+      attribute float aRadius;`,
     )
     .replace("#include <begin_vertex>", roundedVertex);
 }
@@ -63,7 +61,7 @@ function injectRounding(shader: THREE.WebGLProgramParametersWithUniforms) {
 function createDepthMaterial() {
   const material = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
   material.onBeforeCompile = injectRounding;
-  material.customProgramCacheKey = () => "instanced-library-depth-v1";
+  material.customProgramCacheKey = () => "instanced-library-depth-v2";
   return material;
 }
 
@@ -153,7 +151,7 @@ function createLibraryMaterial(atlas: SpineAtlas) {
         diffuseColor.rgb *= 1.0 + vHighlight * 0.16;`,
       );
   };
-  material.customProgramCacheKey = () => "instanced-library-v2";
+  material.customProgramCacheKey = () => "instanced-library-v3";
   return material;
 }
 
@@ -183,6 +181,10 @@ export class InstancedLibrary {
     this.page = new THREE.InstancedBufferAttribute(new Float32Array(count), 1);
     this.highlight = new THREE.InstancedBufferAttribute(new Float32Array(count), 1);
     const board = new THREE.InstancedBufferAttribute(new Float32Array(count * 3), 3);
+    const radius = new THREE.InstancedBufferAttribute(
+      Float32Array.from(books, (book) => book.cornerRadius),
+      1,
+    );
     const color = new THREE.Color();
     books.forEach((book, index) => {
       color.set(book.cover);
@@ -192,6 +194,7 @@ export class InstancedLibrary {
     geometry.setAttribute("aPage", this.page);
     geometry.setAttribute("aBoard", board);
     geometry.setAttribute("aHighlight", this.highlight);
+    geometry.setAttribute("aRadius", radius);
 
     this.mesh = new THREE.InstancedMesh(geometry, createLibraryMaterial(atlas), count);
     this.mesh.name = "instancedLibrary";

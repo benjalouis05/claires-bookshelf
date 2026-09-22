@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { catalog, type Book } from "./catalog";
 import type { ShelfEngine, ShelfMode } from "./engine/ShelfEngine";
+import { spineFontFaces } from "./cover-art";
 import { layoutShelves } from "./layout-shelves";
 import { siteConfig } from "./site-config";
 import {
@@ -96,10 +97,10 @@ export function BookshelfApp() {
 
     async function start() {
       if (!canvasRef.current) return;
-      await Promise.all([
-        document.fonts.load('520 40px "Newsreader Variable"'),
-        document.fonts.load('600 20px "Inter Variable"'),
-      ]).catch(() => undefined);
+      // Spines are painted into canvases, so every face must be loaded first.
+      await Promise.all(spineFontFaces.map((face) => document.fonts.load(face))).catch(
+        () => undefined,
+      );
       await document.fonts.ready;
       const { ShelfEngine } = await import("./engine/ShelfEngine");
       if (cancelled || !canvasRef.current) return;

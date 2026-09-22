@@ -3,6 +3,51 @@ import { siteConfig } from "./site-config";
 
 const serif = '"Newsreader Variable", "Iowan Old Style", Georgia, serif';
 const sans = '"Inter Variable", Inter, Arial, sans-serif';
+const display = '"Playfair Display Variable", "Newsreader Variable", Georgia, serif';
+const geometric = '"Josefin Sans Variable", "Inter Variable", Arial, sans-serif';
+
+type SpineStyle = {
+  font: string;
+  weight: number;
+  italic?: boolean;
+  caps?: boolean;
+  /** Letter spacing as a fraction of the font size. */
+  tracking?: number;
+  authorFont: string;
+};
+
+/** Typographic personalities a spine can take; one is picked per book. */
+const spineStyles: SpineStyle[] = [
+  { font: serif, weight: 560, authorFont: sans },
+  { font: serif, weight: 460, italic: true, authorFont: serif },
+  { font: sans, weight: 720, caps: true, tracking: 0.06, authorFont: sans },
+  { font: display, weight: 720, authorFont: serif },
+  { font: display, weight: 520, italic: true, authorFont: display },
+  { font: geometric, weight: 620, caps: true, tracking: 0.1, authorFont: geometric },
+  { font: sans, weight: 430, authorFont: sans },
+  { font: serif, weight: 680, caps: true, tracking: 0.04, authorFont: serif },
+];
+
+/** Deterministic per-book spine typography: face, weight and size. */
+export function spineStyleFor(book: Pick<Book, "id">) {
+  const random = seeded(`${book.id}-spine-style`);
+  const style = spineStyles[Math.floor(random() * spineStyles.length)];
+  return { ...style, scale: 0.74 + random() * 0.34 };
+}
+
+function fontString(style: SpineStyle, size: number, weight = style.weight, italic = style.italic) {
+  return `${italic ? "italic " : ""}${weight} ${size}px ${style.font}`;
+}
+
+/** Font files the spine styles need, for preloading before drawing. */
+export const spineFontFaces = [
+  '560 40px "Newsreader Variable"',
+  'italic 460 40px "Newsreader Variable"',
+  '600 40px "Inter Variable"',
+  '700 40px "Playfair Display Variable"',
+  'italic 520 40px "Playfair Display Variable"',
+  '620 40px "Josefin Sans Variable"',
+];
 
 function seeded(seed: string) {
   let state = 2166136261;
@@ -598,18 +643,25 @@ export function drawSpine(
   ctx.fillRect(0, logicalHeight - 210, logicalWidth, 10);
   ctx.globalAlpha = 1;
 
-  // Title and author run bottom→top, as on the reference spines.
+  // Title and author run bottom→top, as on the reference spines. Each book
+  // gets its own face, weight and size so the shelf doesn't look uniform.
+  const style = spineStyleFor(book);
+  const title = style.caps ? book.shortTitle.toUpperCase() : book.shortTitle;
   ctx.fillStyle = book.ink;
   ctx.textBaseline = "middle";
   const titleRoom = logicalHeight - 420;
   const hasAuthorRow = logicalWidth > 150;
   const across = hasAuthorRow ? logicalWidth * 0.46 : logicalWidth * 0.62;
-  let titleSize = Math.min(118, across);
-  ctx.font = `560 ${titleSize}px ${serif}`;
-  const measured = ctx.measureText(book.shortTitle).width;
+  let titleSize = Math.min(118, across) * style.scale;
+  const applyTitleFont = () => {
+    ctx.font = fontString(style, titleSize);
+    ctx.letterSpacing = `${(style.tracking ?? 0) * titleSize}px`;
+  };
+  applyTitleFont();
+  const measured = ctx.measureText(title).width;
   if (measured > titleRoom) {
     titleSize = Math.max(titleSize * 0.62, (titleSize * titleRoom) / measured);
-    ctx.font = `560 ${titleSize}px ${serif}`;
+    applyTitleFont();
   }
 
   ctx.save();
@@ -618,10 +670,11 @@ export function drawSpine(
     logicalHeight - 250,
   );
   ctx.rotate(-Math.PI / 2);
-  ctx.fillText(book.shortTitle, 0, 0, titleRoom);
+  ctx.fillText(title, 0, 0, titleRoom);
   if (hasAuthorRow) {
-    const authorSize = Math.min(52, logicalWidth * 0.2);
-    ctx.font = `520 ${authorSize}px ${sans}`;
+    const authorSize = Math.min(52, logicalWidth * 0.2) * (0.85 + (style.scale - 0.74) * 0.5);
+    ctx.font = `${style.italic ? "italic " : ""}500 ${authorSize}px ${style.authorFont}`;
+    ctx.letterSpacing = `${(style.tracking ?? 0) * authorSize * 0.6}px`;
     ctx.globalAlpha = 0.86;
     ctx.fillText(authorLine(book), 0, titleSize * 0.52 + authorSize * 0.72, titleRoom * 0.8);
   }
@@ -629,6 +682,7 @@ export function drawSpine(
 
   ctx.fillStyle = book.ink;
   ctx.globalAlpha = 0.8;
+  ctx.letterSpacing = "0px";
   ctx.font = `700 ${Math.min(44, logicalWidth * 0.3)}px ${sans}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";

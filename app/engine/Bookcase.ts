@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { drawShelfLabel } from "../cover-art";
+import { Penguin } from "./Penguin";
 
 export const rowHeight = 2.75;
 export const boardFrontZ = 0.85;
@@ -18,6 +19,9 @@ const labelCell = { width: 1024, height: 64 };
  */
 export class Bookcase {
   readonly group = new THREE.Group();
+  readonly penguin = new Penguin();
+  /** Merged furniture meshes, rebuilt whenever the shelf count changes. */
+  private furniture = new THREE.Group();
   private labelCanvas = document.createElement("canvas");
   private labelTexture: THREE.CanvasTexture;
   private woodMaterial = new THREE.MeshStandardMaterial({
@@ -46,6 +50,7 @@ export class Bookcase {
     anisotropy: number,
   ) {
     this.group.name = "bookcase";
+    this.group.add(this.furniture, this.penguin.group);
     this.labelTexture = new THREE.CanvasTexture(this.labelCanvas);
     this.labelTexture.colorSpace = THREE.SRGBColorSpace;
     this.labelTexture.anisotropy = anisotropy;
@@ -58,7 +63,7 @@ export class Bookcase {
   }
 
   private clearMeshes() {
-    this.group.children.slice().forEach((child) => {
+    this.furniture.children.slice().forEach((child) => {
       if (child instanceof THREE.Mesh) child.geometry.dispose();
       child.removeFromParent();
     });
@@ -101,13 +106,13 @@ export class Bookcase {
     wood.name = "bookcaseWood";
     wood.castShadow = true;
     wood.receiveShadow = true;
-    this.group.add(wood);
+    this.furniture.add(wood);
     boards.forEach((geometry) => geometry.dispose());
 
     const lip = new THREE.Mesh(mergeGeometries(lips), this.lipMaterial);
     lip.name = "bookcaseLips";
     lip.castShadow = true;
-    this.group.add(lip);
+    this.furniture.add(lip);
     lips.forEach((geometry) => geometry.dispose());
 
     const back = new THREE.Mesh(
@@ -117,7 +122,7 @@ export class Bookcase {
     back.name = "bookcaseBack";
     back.position.set(centerX, this.bottomY + sideHeight * 0.5, centerZ - depth * 0.5 - 0.01);
     back.receiveShadow = true;
-    this.group.add(back);
+    this.furniture.add(back);
 
     // One quad per shelf, all sampling rows of a single label atlas.
     const labelCanvasHeight = labelCell.height * Math.max(1, rows);
@@ -150,9 +155,15 @@ export class Bookcase {
     if (quads.length) {
       const labels = new THREE.Mesh(mergeGeometries(quads), this.labelMaterial);
       labels.name = "shelfLabels";
-      this.group.add(labels);
+      this.furniture.add(labels);
       quads.forEach((geometry) => geometry.dispose());
     }
+  }
+
+  /** Puts the penguin bookend in the gap the layout left for it. */
+  setBookend(bookend: { shelf: number; x: number } | null) {
+    this.penguin.group.visible = bookend !== null;
+    if (bookend) this.penguin.place(bookend.x, shelfTopY(bookend.shelf));
   }
 
   setLabels(labels: string[]) {
@@ -175,6 +186,7 @@ export class Bookcase {
 
   dispose() {
     this.clearMeshes();
+    this.penguin.dispose();
     this.woodMaterial.dispose();
     this.lipMaterial.dispose();
     this.backMaterial.dispose();

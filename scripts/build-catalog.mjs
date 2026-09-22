@@ -88,15 +88,29 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-function heightForFormat(format, id) {
-  const jitter = ((hash(`${id}-h`) % 1000) / 1000 - 0.5) * 0.12;
+function unit(seed) {
+  return (hash(seed) % 10000) / 10000;
+}
+
+export function heightForFormat(format, id) {
   const f = format.toLowerCase();
   const base = f.includes("mass market")
-    ? 1.74
+    ? 1.72
     : f.includes("hardcover") || f.includes("library")
-      ? 2.14
-      : 1.96;
-  return Number((base + jitter).toFixed(3));
+      ? 2.1
+      : 1.94;
+  // A wide, uneven spread like a real shelf: most books near their format's
+  // size, with the occasional oversized or pocket-sized volume.
+  const jitter = (unit(`${id}-h`) - 0.5) * 0.28;
+  const oddity = unit(`${id}-odd`);
+  const extra = oddity > 0.93 ? 0.16 : oddity < 0.06 ? -0.18 : 0;
+  return Number(clamp(base + jitter + extra, 1.56, 2.32).toFixed(3));
+}
+
+/** Board corner radius: some books crisp, some soft and well-worn. */
+export function cornerRadiusFor(format, id) {
+  const soft = format.toLowerCase().includes("hardcover") ? 0.012 : 0;
+  return Number((0.01 + unit(`${id}-r`) ** 1.6 * 0.07 + soft).toFixed(4));
 }
 
 export function thicknessForPages(pages) {
@@ -137,6 +151,7 @@ export function mapRow(row) {
     url,
     motif: motifs[hash(id) % motifs.length],
     height: heightForFormat(format, id),
+    cornerRadius: cornerRadiusFor(format, id),
     thickness: thicknessForPages(pages),
     sourceCover: row["value src"].trim() || null,
   };

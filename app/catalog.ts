@@ -48,6 +48,8 @@ export type Book = {
   /** Scene units, like the reference catalog (≈1.7–2.2 tall). */
   height: number;
   thickness: number;
+  /** Rounding of the shelved book's edges, in scene units. */
+  cornerRadius: number;
   /** Cover board width in scene units, derived from height. */
   width: number;
   coverImage?: string;
