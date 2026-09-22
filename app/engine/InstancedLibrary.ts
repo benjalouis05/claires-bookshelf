@@ -1,21 +1,70 @@
 import * as THREE from "three";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import type { Book } from "../catalog";
 import type { AtlasRect, SpineAtlas } from "./SpineAtlas";
 
 const pageColor = new THREE.Color("#d9ccb1");
+/** Corner radius in scene units, the same for every book whatever its size. */
+const cornerRadius = 0.03;
 
-/** Face kinds baked per vertex: 0 board, 1 spine, 2 page edges. */
+/**
+ * A unit rounded box. Every vertex is an inner corner (`aCorner`, ±0.5 per
+ * axis) pushed out along its normal, so the vertex shader can rebuild the
+ * rounding at each instance's real size instead of stretching it.
+ * Face kinds per vertex: 0 board, 1 spine, 2 page edges.
+ */
 function createBookGeometry() {
-  const geometry = new THREE.BoxGeometry(1, 1, 1);
-  const normals = geometry.getAttribute("normal");
-  const faces = new Float32Array(normals.count);
-  for (let i = 0; i < normals.count; i += 1) {
-    const nx = normals.getX(i);
-    const nz = normals.getZ(i);
-    faces[i] = nx < -0.5 ? 1 : Math.abs(nz) > 0.5 ? 0 : 2;
+  const geometry = new RoundedBoxGeometry(1, 1, 1, 2, 0.06);
+  const positions = geometry.getAttribute("position");
+  const count = positions.count;
+  const corners = new Float32Array(count * 3);
+  const faces = new Float32Array(count);
+  const verticesPerSide = count / 6;
+  // BoxGeometry side order: +x (fore-edge), -x (spine), ±y (page edges), ±z (boards).
+  const faceKind = [2, 1, 2, 2, 0, 0];
+  for (let i = 0; i < count; i += 1) {
+    corners[i * 3] = Math.sign(positions.getX(i)) * 0.5;
+    corners[i * 3 + 1] = Math.sign(positions.getY(i)) * 0.5;
+    corners[i * 3 + 2] = Math.sign(positions.getZ(i)) * 0.5;
+    faces[i] = faceKind[Math.floor(i / verticesPerSide)];
   }
+  geometry.setAttribute("aCorner", new THREE.BufferAttribute(corners, 3));
   geometry.setAttribute("aFace", new THREE.BufferAttribute(faces, 1));
   return geometry;
+}
+
+/**
+ * GLSL that rounds a unit box scaled by instanceMatrix with a fixed radius:
+ * the inner corner sits at (size/2 − r) and the surface lies r along the
+ * normal, expressed in pre-scale units.
+ */
+const roundedVertex = `
+  vec3 roundScale = max(vec3(
+    length(instanceMatrix[0].xyz),
+    length(instanceMatrix[1].xyz),
+    length(instanceMatrix[2].xyz)
+  ), vec3(1e-4));
+  vec3 roundRadius = min(vec3(uCornerRadius), 0.45 * roundScale) / roundScale;
+  vec3 transformed = aCorner + (normal - sign(aCorner)) * roundRadius;`;
+
+function injectRounding(shader: THREE.WebGLProgramParametersWithUniforms) {
+  shader.uniforms.uCornerRadius = { value: cornerRadius };
+  shader.vertexShader = shader.vertexShader
+    .replace(
+      "#include <common>",
+      `#include <common>
+      attribute vec3 aCorner;
+      uniform float uCornerRadius;`,
+    )
+    .replace("#include <begin_vertex>", roundedVertex);
+}
+
+/** Shadow-pass material that applies the same rounding. */
+function createDepthMaterial() {
+  const material = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+  material.onBeforeCompile = injectRounding;
+  material.customProgramCacheKey = () => "instanced-library-depth-v1";
+  return material;
 }
 
 function createLibraryMaterial(atlas: SpineAtlas) {
@@ -31,6 +80,7 @@ function createLibraryMaterial(atlas: SpineAtlas) {
   };
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
+    injectRounding(shader);
     shader.vertexShader = shader.vertexShader
       .replace(
         "#include <common>",
@@ -48,14 +98,25 @@ function createLibraryMaterial(atlas: SpineAtlas) {
         varying vec2 vBookUv;`,
       )
       .replace(
-        "#include <begin_vertex>",
-        `#include <begin_vertex>
-        vFace = aFace;
+        "#include <beginnormal_vertex>",
+        `#include <beginnormal_vertex>
+        // Pre-multiply by the instance scale so three's inverse-transpose
+        // normal transform leaves the rounded normals undistorted.
+        objectNormal *= vec3(
+          length(instanceMatrix[0].xyz),
+          length(instanceMatrix[1].xyz),
+          length(instanceMatrix[2].xyz)
+        );`,
+      )
+      .replace(
+        "vec3 roundScale",
+        `vFace = aFace;
         vSpine = aSpine;
         vPage = aPage;
         vBoard = aBoard;
         vHighlight = aHighlight;
-        vBookUv = uv;`,
+        vBookUv = uv;
+        vec3 roundScale`,
       );
     shader.fragmentShader = shader.fragmentShader
       .replace(
@@ -92,7 +153,7 @@ function createLibraryMaterial(atlas: SpineAtlas) {
         diffuseColor.rgb *= 1.0 + vHighlight * 0.16;`,
       );
   };
-  material.customProgramCacheKey = () => "instanced-library-v1";
+  material.customProgramCacheKey = () => "instanced-library-v2";
   return material;
 }
 
@@ -134,6 +195,7 @@ export class InstancedLibrary {
 
     this.mesh = new THREE.InstancedMesh(geometry, createLibraryMaterial(atlas), count);
     this.mesh.name = "instancedLibrary";
+    this.mesh.customDepthMaterial = createDepthMaterial();
     this.mesh.castShadow = true;
     this.mesh.receiveShadow = true;
     this.mesh.frustumCulled = false;
@@ -192,6 +254,7 @@ export class InstancedLibrary {
   dispose() {
     this.mesh.geometry.dispose();
     (this.mesh.material as THREE.Material).dispose();
+    this.mesh.customDepthMaterial?.dispose();
     this.mesh.dispose();
   }
 }
