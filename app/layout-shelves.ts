@@ -46,7 +46,7 @@ export const defaultShelfOptions: ShelfLayoutOptions = {
   bookends: [
     { kind: "penguin", row: 2, fraction: 0.75, width: 1.15 },
     { kind: "surfboard", row: 6, fraction: 0.25, width: 1.0 },
-    { kind: "lamp", row: -2, fraction: 0.6, width: 0.95 },
+    { kind: "lamp", row: -4, fraction: 0.6, width: 0.95 },
   ],
 };
 

@@ -4,6 +4,7 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { drawShelfLabel } from "../cover-art";
 import type { BookendKind, ShelfLayout } from "../layout-shelves";
 import { createBookend, type Bookend } from "./Bookends";
+import { applyWoodGrain, tagWood } from "./wood";
 
 export const rowHeight = 2.75;
 export const boardFrontZ = 0.85;
@@ -12,7 +13,16 @@ export function shelfTopY(row: number) {
   return -row * rowHeight;
 }
 
-const labelCell = { width: 1024, height: 64 };
+const labelCell = { width: 1024, height: 128 };
+/** Brass shelf plates: world size of one label. */
+const labelHeight = 0.2;
+const labelWidth = labelHeight * (labelCell.width / labelCell.height);
+
+/** A stable pseudo-random tone per board so the wood isn't uniform. */
+function toneFor(seed: number) {
+  const x = Math.sin(seed * 91.17 + 3.1) * 43758.5453;
+  return x - Math.floor(x);
+}
 
 /**
  * Walnut bookcase for any number of shelves. Boards, lips, sides and labels
@@ -58,10 +68,13 @@ export class Bookcase {
     this.labelTexture.anisotropy = anisotropy;
     this.labelMaterial = new THREE.MeshStandardMaterial({
       map: this.labelTexture,
-      roughness: 0.5,
-      metalness: 0.1,
+      roughness: 0.34,
+      metalness: 0.18,
       transparent: true,
     });
+    // Kept faint: a hint of grain and plank variation, not a busy pattern.
+    applyWoodGrain(this.woodMaterial, "bookcase-wood-v2", 0.32);
+    applyWoodGrain(this.lipMaterial, "bookcase-lip-v2", 0.28);
   }
 
   private clearMeshes() {
@@ -87,22 +100,22 @@ export class Bookcase {
       const y = shelfTopY(row);
       const board = new RoundedBoxGeometry(width, 0.22, depth, 2, 0.04);
       board.translate(centerX, row === -1 ? y + 0.02 : y - 0.11, centerZ);
-      boards.push(board);
+      boards.push(tagWood(board, false, toneFor(row + 2)));
       if (row >= 0) {
-        const lip = new THREE.BoxGeometry(width, 0.24, 0.12);
+        const lip = new THREE.BoxGeometry(width, 0.24, 0.12).toNonIndexed();
         lip.translate(centerX, y - 0.12, boardFrontZ + 0.02);
-        lips.push(lip);
+        lips.push(tagWood(lip, false, toneFor(row + 40)));
       }
     }
     const sideHeight = this.topY - this.bottomY;
     for (const x of [-0.35 - 0.13, this.shelfWidth + 0.35 + 0.13]) {
       const side = new RoundedBoxGeometry(0.26, sideHeight, depth + 0.1, 2, 0.05);
       side.translate(x, this.bottomY + sideHeight * 0.5, centerZ + 0.05);
-      boards.push(side);
+      boards.push(tagWood(side, true, toneFor(x)));
     }
     const plinth = new RoundedBoxGeometry(width + 0.52, 0.5, depth + 0.1, 2, 0.04);
     plinth.translate(centerX, this.bottomY + 0.25, centerZ + 0.05);
-    boards.push(plinth);
+    boards.push(tagWood(plinth, false, 0.3));
 
     const wood = new THREE.Mesh(mergeGeometries(boards), this.woodMaterial);
     wood.name = "bookcaseWood";
@@ -141,8 +154,6 @@ export class Bookcase {
       this.labelMaterial.needsUpdate = true;
     }
     const quads: THREE.BufferGeometry[] = [];
-    const labelHeight = 0.18;
-    const labelWidth = labelHeight * (labelCell.width / labelCell.height);
     for (let row = 0; row < rows; row += 1) {
       const quad = new THREE.PlaneGeometry(labelWidth, labelHeight);
       const uv = quad.getAttribute("uv");
@@ -151,7 +162,7 @@ export class Bookcase {
       for (let i = 0; i < uv.count; i += 1) {
         uv.setY(i, uv.getY(i) > 0.5 ? v1 : v0);
       }
-      quad.translate(0.35 + labelWidth * 0.5, shelfTopY(row) - 0.12, boardFrontZ + 0.081);
+      quad.translate(this.shelfWidth * 0.5, shelfTopY(row) - 0.12, boardFrontZ + 0.081);
       quads.push(quad);
     }
     if (quads.length) {

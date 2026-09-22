@@ -772,7 +772,10 @@ export function createBackCover(book: Book) {
   return canvas;
 }
 
-/** Brass-plate style shelf label, drawn into one row of the label atlas. */
+/**
+ * A clean, polished brass plaque with simply engraved lettering, drawn into
+ * one row of the label atlas.
+ */
 export function drawShelfLabel(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -782,23 +785,76 @@ export function drawShelfLabel(
   number: string,
   text: string,
 ) {
+  const pad = height * 0.1;
+  const plateX = x + pad;
+  const plateY = y + pad;
+  const plateW = width - pad * 2;
+  const plateH = height - pad * 2;
+  const radius = plateH * 0.14;
   ctx.save();
   ctx.clearRect(x, y, width, height);
-  ctx.fillStyle = "#e9dcc2";
+
+  // Polished brass: a soft vertical falloff, lightly shadowed onto the wood.
+  ctx.shadowColor = "rgba(20, 10, 4, 0.4)";
+  ctx.shadowBlur = pad * 0.6;
+  ctx.shadowOffsetY = pad * 0.25;
   ctx.beginPath();
-  ctx.roundRect(x + 2, y + 2, width - 4, height - 4, 6);
+  ctx.roundRect(plateX, plateY, plateW, plateH, radius);
+  const brass = ctx.createLinearGradient(0, plateY, 0, plateY + plateH);
+  brass.addColorStop(0, "#e8cf8e");
+  brass.addColorStop(0.45, "#cfa95e");
+  brass.addColorStop(1, "#a9823f");
+  ctx.fillStyle = brass;
   ctx.fill();
-  ctx.strokeStyle = "rgba(60, 42, 30, 0.45)";
+  ctx.shadowColor = "transparent";
+
+  // One fine bevel line: light along the top, darker along the bottom.
+  const bevel = ctx.createLinearGradient(0, plateY, 0, plateY + plateH);
+  bevel.addColorStop(0, "rgba(255, 245, 212, 0.9)");
+  bevel.addColorStop(1, "rgba(110, 76, 26, 0.7)");
   ctx.lineWidth = 2;
+  ctx.strokeStyle = bevel;
+  ctx.beginPath();
+  ctx.roundRect(plateX + 1, plateY + 1, plateW - 2, plateH - 2, radius);
   ctx.stroke();
-  ctx.fillStyle = "#3b2a20";
+
+  // Engraved lettering, centered: shelf number, a thin rule, then the label.
+  const numberFont = `600 ${Math.round(plateH * 0.26)}px ${sans}`;
+  const labelFont = `500 ${Math.round(plateH * 0.44)}px ${serif}`;
+  const tracking = plateH * 0.06;
   ctx.textBaseline = "middle";
-  ctx.font = `700 ${Math.round(height * 0.36)}px ${sans}`;
-  ctx.letterSpacing = "4px";
-  ctx.fillText(`SHELF ${number}`, x + 20, y + height / 2 + 1);
-  const numberWidth = ctx.measureText(`SHELF ${number}`).width;
-  ctx.font = `500 ${Math.round(height * 0.5)}px ${serif}`;
+  ctx.font = numberFont;
+  ctx.letterSpacing = `${tracking}px`;
+  const numberWidth = ctx.measureText(number).width;
+  ctx.font = labelFont;
   ctx.letterSpacing = "0px";
-  ctx.fillText(text, x + 40 + numberWidth, y + height / 2 + 2, width - numberWidth - 64);
+  const gap = plateH * 0.42;
+  const room = plateW - plateH * 0.8;
+  const available = room - numberWidth - gap;
+  const labelWidth = Math.min(available, ctx.measureText(text).width);
+  const startX = plateX + (plateW - (numberWidth + gap + labelWidth)) / 2;
+  const centerY = plateY + plateH / 2;
+
+  const engrave = (draw: () => void) => {
+    ctx.fillStyle = "rgba(255, 244, 214, 0.55)";
+    ctx.save();
+    ctx.translate(0, 1.5);
+    draw();
+    ctx.restore();
+    ctx.fillStyle = "#4a3310";
+    draw();
+  };
+  engrave(() => {
+    ctx.font = numberFont;
+    ctx.letterSpacing = `${tracking}px`;
+    ctx.fillText(number, startX, centerY + 1);
+  });
+  ctx.fillStyle = "rgba(74, 51, 16, 0.55)";
+  ctx.fillRect(startX + numberWidth + gap / 2 - 0.75, centerY - plateH * 0.2, 1.5, plateH * 0.4);
+  engrave(() => {
+    ctx.font = labelFont;
+    ctx.letterSpacing = "0px";
+    ctx.fillText(text, startX + numberWidth + gap, centerY + 2, available);
+  });
   ctx.restore();
 }
