@@ -43,7 +43,7 @@ const roundedVertex = `
     length(instanceMatrix[1].xyz),
     length(instanceMatrix[2].xyz)
   ), vec3(1e-4));
-  vec3 roundRadius = min(vec3(aRadius), 0.45 * roundScale) / roundScale;
+  vec3 roundRadius = min(vec3(aRadius), 0.3 * roundScale) / roundScale;
   vec3 transformed = aCorner + (normal - sign(aCorner)) * roundRadius;`;
 
 function injectRounding(shader: THREE.WebGLProgramParametersWithUniforms) {
@@ -61,7 +61,7 @@ function injectRounding(shader: THREE.WebGLProgramParametersWithUniforms) {
 function createDepthMaterial() {
   const material = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
   material.onBeforeCompile = injectRounding;
-  material.customProgramCacheKey = () => "instanced-library-depth-v2";
+  material.customProgramCacheKey = () => "instanced-library-depth-v3";
   return material;
 }
 
@@ -113,8 +113,14 @@ function createLibraryMaterial(atlas: SpineAtlas) {
         vPage = aPage;
         vBoard = aBoard;
         vHighlight = aHighlight;
-        vBookUv = uv;
         vec3 roundScale`,
+      )
+      .replace(
+        "vec3 transformed = aCorner + (normal - sign(aCorner)) * roundRadius;",
+        `vec3 transformed = aCorner + (normal - sign(aCorner)) * roundRadius;
+        // Spine texture follows the real (rounded) surface position, so the
+        // title keeps its proportions however round the corners are.
+        vBookUv = vec2(transformed.z + 0.5, transformed.y + 0.5);`,
       );
     shader.fragmentShader = shader.fragmentShader
       .replace(
@@ -151,7 +157,7 @@ function createLibraryMaterial(atlas: SpineAtlas) {
         diffuseColor.rgb *= 1.0 + vHighlight * 0.16;`,
       );
   };
-  material.customProgramCacheKey = () => "instanced-library-v3";
+  material.customProgramCacheKey = () => "instanced-library-v4";
   return material;
 }
 

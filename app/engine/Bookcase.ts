@@ -13,9 +13,9 @@ export function shelfTopY(row: number) {
   return -row * rowHeight;
 }
 
-const labelCell = { width: 1024, height: 128 };
+const labelCell = { width: 768, height: 128 };
 /** Brass shelf plates: world size of one label. */
-const labelHeight = 0.2;
+const labelHeight = 0.19;
 const labelWidth = labelHeight * (labelCell.width / labelCell.height);
 
 /** A stable pseudo-random tone per board so the wood isn't uniform. */
@@ -73,8 +73,8 @@ export class Bookcase {
       transparent: true,
     });
     // Kept faint: a hint of grain and plank variation, not a busy pattern.
-    applyWoodGrain(this.woodMaterial, "bookcase-wood-v2", 0.32);
-    applyWoodGrain(this.lipMaterial, "bookcase-lip-v2", 0.28);
+    applyWoodGrain(this.woodMaterial, "bookcase-wood-v2", 0.12);
+    applyWoodGrain(this.lipMaterial, "bookcase-lip-v2", 0.1);
   }
 
   private clearMeshes() {
@@ -162,7 +162,8 @@ export class Bookcase {
       for (let i = 0; i < uv.count; i += 1) {
         uv.setY(i, uv.getY(i) > 0.5 ? v1 : v0);
       }
-      quad.translate(this.shelfWidth * 0.5, shelfTopY(row) - 0.12, boardFrontZ + 0.081);
+      // Tucked at the left end of the shelf lip, out of the way.
+      quad.translate(0.2 + labelWidth * 0.5, shelfTopY(row) - 0.12, boardFrontZ + 0.081);
       quads.push(quad);
     }
     if (quads.length) {
