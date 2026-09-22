@@ -230,7 +230,7 @@ export class ShelfEngine {
     this.layout = layoutShelves(order.map((index) => books[index].thickness));
     this.bookcase.build(this.layout.rows.length);
     this.bookcase.setLabels(labels);
-    this.bookcase.setBookend(this.layout.bookend);
+    this.bookcase.setBookends(this.layout.bookends);
 
     this.setupScene();
     this.resizeObserver = new ResizeObserver(this.handleResize);
@@ -566,8 +566,9 @@ export class ShelfEngine {
     }
     if (!wasClick || !this.ready || this.sortAnimation) return;
     this.updatePointer(event);
-    if (this.hitsPenguin()) {
-      this.bookcase.penguin.hop();
+    const bookend = this.pickBookend();
+    if (bookend) {
+      bookend.poke();
       return;
     }
     const hit = this.raycastBook();
@@ -677,11 +678,10 @@ export class ShelfEngine {
     return null;
   }
 
-  private hitsPenguin() {
-    const penguin = this.bookcase.penguin;
-    if (!penguin.group.visible || !this.bookcase.group.visible) return false;
+  private pickBookend() {
+    if (!this.bookcase.group.visible) return null;
     this.raycaster.setFromCamera(this.pointer, this.camera);
-    return this.raycaster.intersectObject(penguin.mesh, false).length > 0;
+    return this.bookcase.pickBookend(this.raycaster);
   }
 
   /** Nearest book to the pointer on the shelf it is pointing at. */
@@ -715,7 +715,7 @@ export class ShelfEngine {
       this.setHover(null);
       return;
     }
-    if (this.hitsPenguin()) {
+    if (this.pickBookend()) {
       this.setHover(null);
       this.canvas.style.cursor = "pointer";
       return;
@@ -958,7 +958,7 @@ export class ShelfEngine {
     this.updateCamera(delta);
     this.updateBooks(delta, elapsed);
     this.updateSortAnimation(delta);
-    this.bookcase.penguin.update(elapsed, delta, this.reducedMotion);
+    this.bookcase.update(elapsed, delta, this.reducedMotion);
     this.updateHover();
     this.updateHoverAmounts(delta);
     this.updateNearSpines();
@@ -1343,7 +1343,7 @@ export class ShelfEngine {
       this.placeRoom();
     }
     this.bookcase.setLabels(labels);
-    this.bookcase.setBookend(this.layout.bookend);
+    this.bookcase.setBookends(this.layout.bookends);
 
     const wasBrowsing = this.mode === "browse";
     this.mode = "bookcase";

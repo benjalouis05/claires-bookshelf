@@ -82,11 +82,11 @@ test("shelves pack left to right, never overflow, and cover every book once", ()
         if (position > row.start) {
           const previous = layout.slots[position - 1];
           const gap = slot.x - half - (previous.x + thicknesses[position - 1] / 2);
-          const straddlesBookend =
-            layout.bookend?.shelf === row.index &&
-            previous.x < layout.bookend.x &&
-            slot.x > layout.bookend.x;
-          const expected = defaultShelfOptions.gap + (straddlesBookend ? defaultShelfOptions.bookend.width : 0);
+          const bookend = layout.bookends.find(
+            (end) => end.shelf === row.index && previous.x < end.x && slot.x > end.x,
+          );
+          const spec = defaultShelfOptions.bookends.find((end) => end.kind === bookend?.kind);
+          const expected = defaultShelfOptions.gap + (spec ? spec.width : 0);
           assert.ok(Math.abs(gap - expected) < 1e-9, `${key} gap @${position}`);
         }
       }
@@ -96,19 +96,28 @@ test("shelves pack left to right, never overflow, and cover every book once", ()
   }
 });
 
-test("the penguin bookend stands three quarters along the top shelf, clear of books", () => {
+test("bookends stand where planned, with clear space beside the books", () => {
   for (const { key } of sortOptions) {
     const order = sortBooks(books, key);
     const thicknesses = order.map((index) => books[index].thickness);
     const layout = layoutShelves(thicknesses);
-    assert.ok(layout.bookend, key);
-    assert.equal(layout.bookend.shelf, 0);
-    const { shelfWidth, bookend } = defaultShelfOptions;
-    assert.ok(Math.abs(layout.bookend.x - shelfWidth * 0.75) < 0.3, `${key} x=${layout.bookend.x}`);
-    const row = layout.rows[0];
-    for (let position = row.start; position < row.end; position += 1) {
-      const distance = Math.abs(layout.slots[position].x - layout.bookend.x);
-      assert.ok(distance >= bookend.width / 2 + thicknesses[position] / 2 - 1e-9, `${key} overlaps @${position}`);
+    const { shelfWidth, bookends } = defaultShelfOptions;
+    for (const spec of bookends) {
+      const placed = layout.bookends.find((end) => end.kind === spec.kind);
+      assert.ok(placed, `${key} ${spec.kind}`);
+      assert.equal(placed.shelf, spec.row);
+      assert.ok(
+        Math.abs(placed.x - shelfWidth * spec.fraction) < 0.35,
+        `${key} ${spec.kind} x=${placed.x}`,
+      );
+      const row = layout.rows[spec.row];
+      for (let position = row.start; position < row.end; position += 1) {
+        const distance = Math.abs(layout.slots[position].x - placed.x);
+        assert.ok(
+          distance >= spec.width / 2 + thicknesses[position] / 2 - 1e-9,
+          `${key} ${spec.kind} overlaps @${position}`,
+        );
+      }
     }
   }
 });

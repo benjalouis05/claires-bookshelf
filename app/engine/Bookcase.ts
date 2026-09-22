@@ -2,7 +2,8 @@ import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { drawShelfLabel } from "../cover-art";
-import { Penguin } from "./Penguin";
+import type { BookendKind, ShelfLayout } from "../layout-shelves";
+import { createBookend, type Bookend } from "./Bookends";
 
 export const rowHeight = 2.75;
 export const boardFrontZ = 0.85;
@@ -19,7 +20,8 @@ const labelCell = { width: 1024, height: 64 };
  */
 export class Bookcase {
   readonly group = new THREE.Group();
-  readonly penguin = new Penguin();
+  /** Shelf ornaments (penguin, surfboard), created on first use. */
+  readonly bookends = new Map<BookendKind, Bookend>();
   /** Merged furniture meshes, rebuilt whenever the shelf count changes. */
   private furniture = new THREE.Group();
   private labelCanvas = document.createElement("canvas");
@@ -50,7 +52,7 @@ export class Bookcase {
     anisotropy: number,
   ) {
     this.group.name = "bookcase";
-    this.group.add(this.furniture, this.penguin.group);
+    this.group.add(this.furniture);
     this.labelTexture = new THREE.CanvasTexture(this.labelCanvas);
     this.labelTexture.colorSpace = THREE.SRGBColorSpace;
     this.labelTexture.anisotropy = anisotropy;
@@ -160,10 +162,36 @@ export class Bookcase {
     }
   }
 
-  /** Puts the penguin bookend in the gap the layout left for it. */
-  setBookend(bookend: { shelf: number; x: number } | null) {
-    this.penguin.group.visible = bookend !== null;
-    if (bookend) this.penguin.place(bookend.x, shelfTopY(bookend.shelf));
+  /** Stands each bookend in the gap the layout left for it. */
+  setBookends(placed: ShelfLayout["bookends"]) {
+    this.bookends.forEach((bookend) => {
+      bookend.group.visible = false;
+    });
+    for (const { kind, shelf, x } of placed) {
+      let bookend = this.bookends.get(kind);
+      if (!bookend) {
+        bookend = createBookend(kind);
+        this.bookends.set(kind, bookend);
+        this.group.add(bookend.group);
+      }
+      bookend.group.visible = true;
+      bookend.place(x, shelfTopY(shelf));
+    }
+  }
+
+  update(elapsed: number, delta: number, reducedMotion: boolean) {
+    this.bookends.forEach((bookend) => {
+      if (bookend.group.visible) bookend.update(elapsed, delta, reducedMotion);
+    });
+  }
+
+  /** The bookend under a ray, if any. */
+  pickBookend(raycaster: THREE.Raycaster) {
+    for (const bookend of this.bookends.values()) {
+      if (!bookend.group.visible) continue;
+      if (raycaster.intersectObject(bookend.mesh, false).length) return bookend;
+    }
+    return null;
   }
 
   setLabels(labels: string[]) {
@@ -186,7 +214,8 @@ export class Bookcase {
 
   dispose() {
     this.clearMeshes();
-    this.penguin.dispose();
+    this.bookends.forEach((bookend) => bookend.dispose());
+    this.bookends.clear();
     this.woodMaterial.dispose();
     this.lipMaterial.dispose();
     this.backMaterial.dispose();

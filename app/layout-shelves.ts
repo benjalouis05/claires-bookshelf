@@ -7,8 +7,19 @@ export type ShelfLayoutOptions = {
   shelfWidth: number;
   gap: number;
   inset: number;
-  /** A decorative bookend that takes up room on one shelf. */
-  bookend?: { row: number; fraction: number; width: number };
+  /** Decorative bookends, each taking up room on one shelf. */
+  bookends?: BookendSpec[];
+};
+
+export type BookendKind = "penguin" | "surfboard";
+
+export type BookendSpec = {
+  kind: BookendKind;
+  row: number;
+  /** How far along the shelf it stands, 0–1. */
+  fraction: number;
+  /** Room it takes on the shelf, including breathing space. */
+  width: number;
 };
 
 export type ShelfRow = {
@@ -23,15 +34,18 @@ export type ShelfLayout = {
   /** Indexed by display position. */
   slots: Array<{ x: number; shelf: number }>;
   rows: ShelfRow[];
-  /** Where the bookend stands (its center), if it was placed. */
-  bookend: { shelf: number; x: number } | null;
+  /** Where each placed bookend stands (its center). */
+  bookends: Array<{ kind: BookendKind; shelf: number; x: number }>;
 };
 
 export const defaultShelfOptions: ShelfLayoutOptions = {
   shelfWidth: 12,
   gap: 0.045,
   inset: 0.18,
-  bookend: { row: 0, fraction: 0.75, width: 0.78 },
+  bookends: [
+    { kind: "penguin", row: 2, fraction: 0.75, width: 1.15 },
+    { kind: "surfboard", row: 4, fraction: 0.25, width: 1.0 },
+  ],
 };
 
 export function layoutShelves(
@@ -43,18 +57,17 @@ export function layoutShelves(
   let shelf = 0;
   let cursor = options.inset;
   let start = 0;
-  let bookend: ShelfLayout["bookend"] = null;
-  const end = options.bookend;
+  const bookends: ShelfLayout["bookends"] = [];
+  const pending = [...(options.bookends ?? [])];
 
   thicknesses.forEach((thickness, position) => {
-    if (
-      end &&
-      !bookend &&
-      shelf === end.row &&
-      cursor >= options.shelfWidth * end.fraction - end.width / 2
-    ) {
-      bookend = { shelf, x: cursor - options.gap + end.width / 2 };
-      cursor += end.width;
+    for (let i = pending.length - 1; i >= 0; i -= 1) {
+      const end = pending[i];
+      if (shelf === end.row && cursor >= options.shelfWidth * end.fraction - end.width / 2) {
+        bookends.push({ kind: end.kind, shelf, x: cursor - options.gap + end.width / 2 });
+        cursor += end.width;
+        pending.splice(i, 1);
+      }
     }
     const fits = cursor + thickness <= options.shelfWidth - options.inset;
     if (!fits && position > start) {
@@ -70,7 +83,7 @@ export function layoutShelves(
   if (thicknesses.length > start || rows.length === 0) {
     rows.push({ index: shelf, start, end: thicknesses.length });
   }
-  return { slots, rows, bookend };
+  return { slots, rows, bookends };
 }
 
 /** Display position on `row` whose slot x is nearest to `x`. */
